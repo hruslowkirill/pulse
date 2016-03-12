@@ -13,10 +13,23 @@ from matplotlib.backends.backend_wxagg import \
     NavigationToolbar2WxAgg as NavigationToolbar
 import numpy as np
 import pylab
-
+import datetime
 from DataManager import getCurrentValue
+import time
+from threading import Thread
+import Queue
 
+frequency = 20.0
+max_length = 150
 
+def ThreadFunction(mainFrame):
+    while 1>0:
+        #mainFrame.data.append(getCurrentValue())
+        mainFrame.data.append(getCurrentValue())
+        if (len(mainFrame.data)>max_length):
+            mainFrame.data.pop(0)
+        mainFrame.count+= 1
+        time.sleep(1/frequency)
 
 class MainFrame(wx.Frame):
   
@@ -25,16 +38,20 @@ class MainFrame(wx.Frame):
             size=(1000, 800))
             
         #self.datagen = DataGen()
+        self.queue = Queue.Queue()
         self.data = [getCurrentValue()]
+        self.count = 0
         self.create_main_panel()
             
         self.redraw_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_redraw_timer, self.redraw_timer)        
-        self.redraw_timer.Start(1)
+        self.redraw_timer.Start(100)
         
         self.SetSize((1000, 800))
         self.Centre()
         self.Show()
+        self.thread = Thread(target=ThreadFunction, args=(self,))
+        self.thread.start()
         
     def create_main_panel(self):
         self.panel = wx.Panel(self)
@@ -70,8 +87,11 @@ class MainFrame(wx.Frame):
     def draw_plot(self):
         """ Redraws the plot
         """
-        xmax = len(self.data) if len(self.data) > 100 else 100
-        xmin = xmax - 100
+        
+        xmax = (self.count if self.count > max_length else max_length)
+        xmin = (xmax - max_length)
+        xmax = xmax/frequency
+        xmin = xmin/frequency
         ymin = round(min(self.data), 0) - 1
         ymax = round(max(self.data), 0) + 1
         
@@ -85,13 +105,12 @@ class MainFrame(wx.Frame):
         pylab.setp(self.axes.get_xticklabels(), 
             visible=True)
         
-        self.plot_data.set_xdata(np.arange(len(self.data)))
+        self.plot_data.set_xdata(np.arange(len(self.data))/frequency+xmin)
         self.plot_data.set_ydata(np.array(self.data))
         
         self.canvas.draw()
     def on_redraw_timer(self, event):
-
-        self.data.append(getCurrentValue())
+        #print datetime.datetime.now()
         self.draw_plot()
 
 if __name__ == '__main__':
